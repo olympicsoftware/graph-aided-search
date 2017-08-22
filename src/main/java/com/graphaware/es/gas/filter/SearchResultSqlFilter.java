@@ -13,10 +13,15 @@
  * the GNU General Public License along with this program.  If not, see
  * <http://www.gnu.org/licenses/>.
  */
+
+
+ /*
+    Olympic Software - SQL Assisted Search
+            Proof of Concept
+ */
 package com.graphaware.es.gas.filter;
 
 import com.graphaware.es.gas.annotation.SearchFilter;
-import com.graphaware.es.gas.cypher.CypherEndPoint;
 import com.graphaware.es.gas.cypher.CypherResult;
 import com.graphaware.es.gas.cypher.CypherSettingsReader;
 import com.graphaware.es.gas.cypher.ResultRow;
@@ -28,7 +33,6 @@ import org.elasticsearch.search.internal.InternalSearchHits;
 
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.Settings;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -39,7 +43,6 @@ import java.util.logging.Logger;
 
 import java.sql.*;
 import java.sql.SQLException;
-import com.microsoft.sqlserver.jdbc.*;
 
 import static com.graphaware.es.gas.domain.ClauseConstants.*;
 import static com.graphaware.es.gas.wrap.GraphAidedSearchActionListenerWrapper.GAS_FILTER_CLAUSE;
@@ -65,7 +68,7 @@ public class SearchResultSqlFilter extends CypherSettingsReader implements Searc
 
     public SearchResultSqlFilter(Settings settings, IndexInfo indexSettings) {
         super(settings, indexSettings);
-        this.esLogger = Loggers.getLogger("SQLLogger", settings);
+        this.esLogger = Loggers.getLogger("SearchResultSqlFilter", settings);
     }
 
     @Override
@@ -96,8 +99,6 @@ public class SearchResultSqlFilter extends CypherSettingsReader implements Searc
 
     @Override
     public InternalSearchHits modify(final InternalSearchHits hits) {
-        esLogger.debug("InternalSearchHits - Start");
-
         final InternalSearchHit[] searchHits = hits.internalHits();
         Map<String, InternalSearchHit> hitMap = new HashMap<>();
         for (InternalSearchHit hit : searchHits) {
@@ -107,7 +108,6 @@ public class SearchResultSqlFilter extends CypherSettingsReader implements Searc
         Set<String> remoteFilter = getFilteredItems();
         esLogger.debug("InternalSearchHits - remoteFilter.size():" + remoteFilter.size());
         esLogger.debug("InternalSearchHits - remoteFilter:" + remoteFilter);
-        
         esLogger.debug("InternalSearchHits - shouldExclude:" + shouldExclude);
 
         InternalSearchHit[] tmpSearchHits = new InternalSearchHit[hitMap.size()];
@@ -125,11 +125,11 @@ public class SearchResultSqlFilter extends CypherSettingsReader implements Searc
                                 if (maxScore < score) {
                                     maxScore = score;
                                 }
-            }
-                            else
-                            {
-                                    esLogger.debug("InternalSearchHits - item will *NOT* be included in result set");
-                            }
+                }
+                else
+                {
+                        esLogger.debug("InternalSearchHits - item will *NOT* be included in result set");
+                }
         }
         int totalSize = k;
 
@@ -167,40 +167,23 @@ public class SearchResultSqlFilter extends CypherSettingsReader implements Searc
     }
 
     protected CypherResult getSqlResult() {
-        // return cypherEndPoint.executeCypher(cypherQuery, new HashMap<String, Object>());
-     
-        	// Create a variable for the connection string.
-		//String connectionUrl = "jdbc:sqlserver://localhost:1433;" +
-		//	"databaseName=AdventureWorks;integratedSecurity=true;";
-
-		// Declare the JDBC objects.
 		Connection con = null;
 		Statement stmt = null;
 		ResultSet rs = null;
         CypherResult result = new CypherResult();
-        
-        logger.log(Level.FINE,"getSqlResult");
-        	try {
-        		// Establish the connection.
-        		Class.forName("com.microsoft.sqlserver.jdbc.SQLServerDriver");
-            		con = DriverManager.getConnection(sqlConnectionString);
-            
-            		// Create and execute an SQL statement that returns some data.
-            		//String SQL = "SELECT TOP 10 * FROM Person.Contact";
-            		stmt = con.createStatement();
-            		rs = stmt.executeQuery(sqlQuery);
-            
-            		// Iterate through the data in the result set and display it.
-            		//while (rs.next()) {
-            		//	System.out.println(rs.getString(4) + " " + rs.getString(6));
-            		//}
-                    result = buildResult(rs);
-        	}
+    
+        try {
+            // Establish the connection.
+            Class.forName("com.microsoft.sqlserver.jdbc.SQLServerDriver");
+                con = DriverManager.getConnection(sqlConnectionString);
+                stmt = con.createStatement();
+                rs = stmt.executeQuery(sqlQuery);
+                result = buildResult(rs);
+        }
         
 		// Handle any errors that may have occurred.
 		catch (Exception e) {
             esLogger.debug("getSqlResult - Exception:" + e.getMessage());
-			// logger.log(Level.FINE,"{0}",e.getMessage());
 		}
 
         finally
@@ -210,8 +193,6 @@ public class SearchResultSqlFilter extends CypherSettingsReader implements Searc
     		if (con != null) try { con.close(); } catch(Exception e) {}
             return result;
         }
-
-		// }
     }
 
     protected String getFilteredItem(ResultRow resultRow) {
@@ -220,14 +201,6 @@ public class SearchResultSqlFilter extends CypherSettingsReader implements Searc
         }
 
         return getIdentifier(resultRow.get(getIdResultName()));
-    }
-
-    public int getSize() {
-        return size;
-    }
-
-    public int getFrom() {
-        return from;
     }
 
     public String getIdResultName() {
@@ -241,9 +214,8 @@ public class SearchResultSqlFilter extends CypherSettingsReader implements Searc
         return String.valueOf(objectId);
     }
     
-
+// Make the SQLResult into a Cypher Result
     private CypherResult buildResult(ResultSet response) throws SQLException {
-        esLogger.debug("buildResult - Start");
         CypherResult result = new CypherResult();
         ResultSetMetaData rsmd = response.getMetaData();
         int columnCount = rsmd.getColumnCount();
@@ -258,7 +230,6 @@ public class SearchResultSqlFilter extends CypherSettingsReader implements Searc
             }
             result.addRow(resultRow);
         }
-
         return result;
     }
 
