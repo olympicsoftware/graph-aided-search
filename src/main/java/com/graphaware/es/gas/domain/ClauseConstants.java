@@ -18,6 +18,7 @@ package com.graphaware.es.gas.domain;
 
 public final class ClauseConstants {
 
+    public static final String CONNECTION_STRING = "connectionString";
     public static final String QUERY = "query";
     public static final String SCORE_NAME = "scoreName";
     public static final String IDENTIFIER = "identifier";

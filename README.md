@@ -1,3 +1,101 @@
+# Olympic Software MSSQL-Aided Search + neo4j Graph-Aided Search
+
+This is a Proof-Of-Concept (POC) MSSQL Filter.
+
+Follow instructions below for installation.
+
+*** _WARNING_ ***
+Connection Strings are plain text.
+Restrict access in SQL.
+ie, TRUNCATE TABLE, DROP DATABASE, etc are all just executed!!!!
+
+### Usage Example with Sample Data
+```json
+DELETE /jtest
+
+PUT /jtest
+{
+      "settings": {
+        "index.gas.neo4j.hostname": "http://localhost:7474",
+        "index.gas.enable": true
+       }
+}
+
+
+
+GET /jtest/_settings
+
+
+
+PUT /jtest/product/1
+{
+  "name":"11"
+}
+
+PUT /jtest/product/2
+{
+  "name":"22"
+}
+PUT /jtest/product/3
+{
+  "name":"33"
+}
+PUT /jtest/product/4
+{
+  "name":"44"
+}
+PUT /jtest/product/5
+{
+  "name":"55"
+}
+
+
+POST /jtest/product/_search
+{
+  "query": {"match_all": {}}
+}
+
+POST /jtest/product/_search
+{
+    "query" : {
+        "match_all" : {}
+    },
+    "gas-filter" :{
+          "name": "SearchResultSqlFilter",
+          "query": "select top 2 [ID] as fred from OrderPayment",
+          "connectionString": "jdbc:sqlserver://W2991:1433;databaseName=Bob;user=bob;password=password;",
+          "exclude": false,
+          "identifier": "fred"
+       }
+  }
+  
+POST /jtest/product/_search
+{
+    "query" : {
+        "match_all" : {}
+    },
+    "gas-filter" :{
+          "name": "SearchResultSqlFilter",
+          "query": "select '2' as [id], 'banana' as productname",
+          "connectionString": "jdbc:sqlserver://W2991:1433;databaseName=Bob;user=bob;password=password;",
+          "exclude": true
+       }
+  }
+  
+  POST /jtest/product/_search
+  {
+    "query" : {
+        "match_all" : {}
+    },
+    "gas-filter" :{
+          "name": "SearchResultCypherFilter",
+          "query": "MATCH (input:User) WHERE id(input) = 2 MATCH (input)-[f:FRIEND_OF]->(friend)-[r:RATED]->(movie)  WHERE r.rate > 3             RETURN movie.uuid as id",
+          "exclude": false
+       }
+  }
+```
+
+
 # GraphAware Graph-Aided Search
 
 ## ElasticSearch Plugin providing integration with Neo4j
