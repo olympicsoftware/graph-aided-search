@@ -84,49 +84,48 @@ public class SearchResultCypherFilter extends CypherSettingsReader implements Se
 
     @Override
     public InternalSearchHits modify(final InternalSearchHits hits) {
-        throw new RuntimeException("STOP");
-        // Set<String> remoteFilter = getFilteredItems();
-        // final InternalSearchHit[] searchHits = hits.internalHits();
-        // Map<String, InternalSearchHit> hitMap = new HashMap<>();
-        // for (InternalSearchHit hit : searchHits) {
-        //     hitMap.put(hit.getId(), hit);
-        // }
+        Set<String> remoteFilter = getFilteredItems();
+        final InternalSearchHit[] searchHits = hits.internalHits();
+        Map<String, InternalSearchHit> hitMap = new HashMap<>();
+        for (InternalSearchHit hit : searchHits) {
+            hitMap.put(hit.getId(), hit);
+        }
 
-        // InternalSearchHit[] tmpSearchHits = new InternalSearchHit[hitMap.size()];
-        // int k = 0;
-        // float maxScore = -1;
-        // for (Map.Entry<String, InternalSearchHit> item : hitMap.entrySet()) {
-        //     if ((shouldExclude && !remoteFilter.contains(item.getKey()))
-        //             || (!shouldExclude && remoteFilter.contains(item.getKey()))) {
-        //         tmpSearchHits[k] = item.getValue();
-        //         k++;
-        //         float score = item.getValue().getScore();
-        //         if (maxScore < score) {
-        //             maxScore = score;
-        //         }
-        //     }
-        // }
-        // int totalSize = k;
+        InternalSearchHit[] tmpSearchHits = new InternalSearchHit[hitMap.size()];
+        int k = 0;
+        float maxScore = -1;
+        for (Map.Entry<String, InternalSearchHit> item : hitMap.entrySet()) {
+            if ((shouldExclude && !remoteFilter.contains(item.getKey()))
+                    || (!shouldExclude && remoteFilter.contains(item.getKey()))) {
+                tmpSearchHits[k] = item.getValue();
+                k++;
+                float score = item.getValue().getScore();
+                if (maxScore < score) {
+                    maxScore = score;
+                }
+            }
+        }
+        int totalSize = k;
 
-        // logger.log(Level.FINE, "k <= reorderSize: {0}", (k <= size));
+        logger.log(Level.FINE, "k <= reorderSize: {0}", (k <= size));
 
-        // final int arraySize = (size + from) < k ? size
-        //         : (k - from) > 0 ? (k - from) : 0;
-        // if (arraySize == 0) {
-        //     return new InternalSearchHits(new InternalSearchHit[0], 0, 0);
-        // }
+        final int arraySize = (size + from) < k ? size
+                : (k - from) > 0 ? (k - from) : 0;
+        if (arraySize == 0) {
+            return new InternalSearchHits(new InternalSearchHit[0], 0, 0);
+        }
 
-        // InternalSearchHit[] newSearchHits = new InternalSearchHit[arraySize];
-        // k = 0;
-        // for (int i = from; i < arraySize + from; i++) {
-        //     InternalSearchHit newId = tmpSearchHits[i];
-        //     if (newId == null) {
-        //         break;
-        //     }
-        //     newSearchHits[k++] = newId;
-        // }
-        // return new InternalSearchHits(newSearchHits, totalSize,
-        //         hits.maxScore());
+        InternalSearchHit[] newSearchHits = new InternalSearchHit[arraySize];
+        k = 0;
+        for (int i = from; i < arraySize + from; i++) {
+            InternalSearchHit newId = tmpSearchHits[i];
+            if (newId == null) {
+                break;
+            }
+            newSearchHits[k++] = newId;
+        }
+        return new InternalSearchHits(newSearchHits, totalSize,
+                hits.maxScore());
     }
 
     protected Set<String> getFilteredItems() {

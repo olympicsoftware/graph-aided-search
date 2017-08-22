@@ -25,10 +25,10 @@ import com.graphaware.es.gas.util.NumberUtil;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHits;
+
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
-
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -47,8 +47,8 @@ import static com.graphaware.es.gas.wrap.GraphAidedSearchActionListenerWrapper.G
 @SearchFilter(name = "SearchResultSqlFilter")
 public class SearchResultSqlFilter extends CypherSettingsReader implements SearchResultFilter {
 
-    // private static final Logger logger = Logger.getLogger(SearchResultSqlFilter.class.getName());
-    private final ESLogger logger;
+    private static final Logger logger = Logger.getLogger(SearchResultSqlFilter.class.getName());
+    private final ESLogger esLogger;
 
     private static final String DEFAULT_ID_RESULT_NAME = "id";
     private static final String ID_RESULT_NAME_KEY = "identifier";
@@ -65,7 +65,7 @@ public class SearchResultSqlFilter extends CypherSettingsReader implements Searc
 
     public SearchResultSqlFilter(Settings settings, IndexInfo indexSettings) {
         super(settings, indexSettings);
-        this.logger = Loggers.getLogger("SQLLogger", settings);
+        this.esLogger = Loggers.getLogger("SQLLogger", settings);
     }
 
     @Override
@@ -90,35 +90,50 @@ public class SearchResultSqlFilter extends CypherSettingsReader implements Searc
         if (null == sqlConnectionString) {
             throw new RuntimeException("The connectionString Parameter is required in gas-filter");
         }
+        esLogger.debug("sqlConnectionString:" + sqlConnectionString);
+        esLogger.debug("sqlQuery:" + sqlQuery);
     }
 
     @Override
     public InternalSearchHits modify(final InternalSearchHits hits) {
-        logger.debug("InternalSearchHits");
-        Set<String> remoteFilter = getFilteredItems();
+        esLogger.debug("InternalSearchHits - Start");
+
         final InternalSearchHit[] searchHits = hits.internalHits();
         Map<String, InternalSearchHit> hitMap = new HashMap<>();
         for (InternalSearchHit hit : searchHits) {
             hitMap.put(hit.getId(), hit);
         }
 
+        Set<String> remoteFilter = getFilteredItems();
+        esLogger.debug("InternalSearchHits - remoteFilter.size():" + remoteFilter.size());
+        esLogger.debug("InternalSearchHits - remoteFilter:" + remoteFilter);
+        
+        esLogger.debug("InternalSearchHits - shouldExclude:" + shouldExclude);
+
         InternalSearchHit[] tmpSearchHits = new InternalSearchHit[hitMap.size()];
         int k = 0;
         float maxScore = -1;
         for (Map.Entry<String, InternalSearchHit> item : hitMap.entrySet()) {
-            if ((shouldExclude && !remoteFilter.contains(item.getKey()))
+                esLogger.debug("InternalSearchHits - item.getKey:" + item.getKey());
+                esLogger.debug("InternalSearchHits - remoteFilter.contains(item.getKey()):" + remoteFilter.contains(item.getKey()));
+                if ((shouldExclude && !remoteFilter.contains(item.getKey()))
                     || (!shouldExclude && remoteFilter.contains(item.getKey()))) {
-                tmpSearchHits[k] = item.getValue();
-                k++;
-                float score = item.getValue().getScore();
-                if (maxScore < score) {
-                    maxScore = score;
-                }
+                                esLogger.debug("InternalSearchHits - item will be included in result set");
+                                tmpSearchHits[k] = item.getValue();
+                                k++;
+                                float score = item.getValue().getScore();
+                                if (maxScore < score) {
+                                    maxScore = score;
+                                }
             }
+                            else
+                            {
+                                    esLogger.debug("InternalSearchHits - item will *NOT* be included in result set");
+                            }
         }
         int totalSize = k;
 
-        // logger.log(Level.FINE, "k <= reorderSize: {0}", (k <= size));
+        logger.log(Level.FINE, "k <= reorderSize: {0}", (k <= size));
 
         final int arraySize = (size + from) < k ? size
                 : (k - from) > 0 ? (k - from) : 0;
@@ -141,6 +156,7 @@ public class SearchResultSqlFilter extends CypherSettingsReader implements Searc
 
     protected Set<String> getFilteredItems() {
         CypherResult result = getSqlResult();
+
         Set<String> filteredItems = new HashSet<>();
 
         for (ResultRow resultRow : result.getRows()) {
@@ -161,7 +177,9 @@ public class SearchResultSqlFilter extends CypherSettingsReader implements Searc
 		Connection con = null;
 		Statement stmt = null;
 		ResultSet rs = null;
-		
+        CypherResult result = new CypherResult();
+        
+        logger.log(Level.FINE,"getSqlResult");
         	try {
         		// Establish the connection.
         		Class.forName("com.microsoft.sqlserver.jdbc.SQLServerDriver");
@@ -176,23 +194,23 @@ public class SearchResultSqlFilter extends CypherSettingsReader implements Searc
             		//while (rs.next()) {
             		//	System.out.println(rs.getString(4) + " " + rs.getString(6));
             		//}
-
-                    return buildResult(rs);
+                    result = buildResult(rs);
         	}
         
 		// Handle any errors that may have occurred.
 		catch (Exception e) {
-			logger.debug(e.getMessage());
+            esLogger.debug("getSqlResult - Exception:" + e.getMessage());
+			// logger.log(Level.FINE,"{0}",e.getMessage());
 		}
 
         finally
         {
-            return new CypherResult();
+   			if (rs != null) try { rs.close(); } catch(Exception e) {}
+    		if (stmt != null) try { stmt.close(); } catch(Exception e) {}
+    		if (con != null) try { con.close(); } catch(Exception e) {}
+            return result;
         }
 
-		// 	// if (rs != null) try { rs.close(); } catch(Exception e) {}
-	    // 	// 	if (stmt != null) try { stmt.close(); } catch(Exception e) {}
-	    // 	// 	if (con != null) try { con.close(); } catch(Exception e) {}
 		// }
     }
 
@@ -225,6 +243,7 @@ public class SearchResultSqlFilter extends CypherSettingsReader implements Searc
     
 
     private CypherResult buildResult(ResultSet response) throws SQLException {
+        esLogger.debug("buildResult - Start");
         CypherResult result = new CypherResult();
         ResultSetMetaData rsmd = response.getMetaData();
         int columnCount = rsmd.getColumnCount();
@@ -234,10 +253,12 @@ public class SearchResultSqlFilter extends CypherSettingsReader implements Searc
             for (int i = 1; i <= columnCount; i++ ) {
                 String name = rsmd.getColumnName(i);
                 String value = response.getString(i);
+                esLogger.debug("buildResult - name:value =" + name +":" + value);
                 resultRow.add(name,value);
             }
             result.addRow(resultRow);
         }
+
         return result;
     }
 
